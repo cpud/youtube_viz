@@ -34,7 +34,8 @@ layout = html.Div([
                   have a depth of 0, and every video directly related to it would have a depth of 1, \
                   because it is one step further down the rabbit hole.'),
                   html.Li('Selection is based on "likeRatio", so the video that is "selected" next \
-                  is the video with the highest "likeRatio" amongst the related videos.'),
+                  is the video with the highest "likeRatio" amongst the related videos. "likeRatio" \
+                  refers to the ratio of "Likes" over "Likes + Dislikes".'),
                   html.Li("I'd like to include more videos per node, but this app uses up youtube's API \
                   quota quickly, so I've limited it to 5."),
                   html.Li("I've included a default dataset (Sonic Youth) to display in the case that the API quota \
