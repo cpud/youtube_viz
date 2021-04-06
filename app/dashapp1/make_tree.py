@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from igraph import Graph
+from textblob import TextBlob
 from datetime import datetime
 from .data import gather_data
 
@@ -61,6 +62,8 @@ def make_df(url):
     videos['length'] = videos['length'].apply(lambda x: convert_time(x))
     videos['published'] = videos['published'].apply(lambda x: x.split('T')[0])
     videos['likeRatio'] = videos['likeRatio'].apply(lambda x: round(x*100,3))
+    videos['polarity'] = videos['title'].apply(lambda x: abs(TextBlob(x).polarity))
+    videos['polarity'] = videos['polarity'].apply(lambda x: round(x,3))
     videos.to_csv("data/videos.csv")
 
     return videos
@@ -106,12 +109,14 @@ def make_plot(videos):
 
     # prepare text for plot
     videos['depth'] = coloring
+    videos['pol_string'] = videos['polarity'].apply(lambda x: str(x))
     videos['minutes'] = videos['length'].apply(lambda x: length_to_min(x))
     videos['views_str'] = videos['views'].apply(lambda x: str(x))
     videos['likes_str'] = videos['likes'].apply(lambda x: str(x))
     videos['dislikes_str'] = videos['dislikes'].apply(lambda x: str(x))
     videos['likeRatio_str'] = videos['likeRatio'].apply(lambda x: str(x))
-    videos['plot_text'] = videos['title'] + ' ' + '<br>' + 'Views: ' + videos['views_str'] + \
+    videos['plot_text'] = videos['title'] + ' ' + '<br>' + 'Polarity: ' + videos['pol_string'] + '<br>' + \
+                        'Views: ' + videos['views_str'] + \
                         '<br>' + 'Likes: ' + videos['likes_str'] + '<br>' + \
                         'LikeRatio: ' + videos['likeRatio_str'] + '<br>' + 'Length: ' + videos['length']
 
@@ -121,6 +126,7 @@ def make_plot(videos):
     for depth in depths:
         temp = videos[videos['depth'] == depth]
         temp = temp.sort_values(by = ['likeRatio', 'views'], ascending = False)
+        temp = temp.sort_values(by = ['polarity'], ascending = False)
         proper_sort = proper_sort.append(temp)
 
     videos = proper_sort
@@ -186,14 +192,22 @@ def make_plot(videos):
     fig.update_xaxes(showticklabels = False)
     fig.update_yaxes(showticklabels = False)
 
-    fig2, fig3, fig4 = make_bars(videos)
+    fig2, fig3, fig4, fig5 = make_bars(videos)
 
-    return fig, fig2, fig3, fig4
+    return fig, fig2, fig3, fig4, fig5
 
 
 def make_bars(videos):
     depths = [0,1,2,3,4,5]
-    videos = pd.read_csv('data/videos.csv')
+    #videos = pd.read_csv('data/videos.csv')
+
+    #try:
+    #    videos = pd.read_csv('data/videos.csv')
+    #except:
+    #    videos = pd.read_csv('data/sy.csv')
+
+    polarity_mean = []
+    polarity_std = []
     likes_mean = []
     likes_std = []
     mins_mean = []
@@ -202,6 +216,8 @@ def make_bars(videos):
     views_std = []
     for depth in depths:
         depth_df = videos[videos['depth'] == depth]
+        polarity_mean.append(depth_df['polarity'].mean())
+        polarity_std.append(depth_df['polarity'].std())
         likes_mean.append(depth_df['likes'].mean())
         likes_std.append(depth_df['likes'].std())
         mins_mean.append(depth_df['minutes'].mean())
@@ -209,7 +225,26 @@ def make_bars(videos):
         views_mean.append(depth_df['views'].mean())
         views_std.append(depth_df['views'].std())
 
+
     fig2 = go.Figure(data = [
+            go.Bar(name = 'mean', x = depths, y = polarity_mean,
+                  #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
+                   #marker_color = ['#440154']
+                  ),
+            go.Bar(name = 'std', x = depths, y = polarity_std,
+                  #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
+                   #marker_color = ['#1f9e89']
+                  ),
+        ])
+    fig2.update_layout(#barmode='group',
+                           #font_color = '#3B846D',
+                           colorway = ['#3e4989', '#1f9e89'],
+                           title = 'Average Video Title Polarity',
+                           xaxis_title="Depth",
+                           yaxis_title="Polarity",)
+
+
+    fig3 = go.Figure(data = [
         go.Bar(name = 'mean', x = depths, y = likes_mean,
               #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
                #marker_color = ['#440154']
@@ -219,7 +254,7 @@ def make_bars(videos):
                #marker_color = ['#1f9e89']
               ),
     ])
-    fig2.update_layout(#barmode='group',
+    fig3.update_layout(#barmode='group',
                        #font_color = '#3B846D',
                        colorway = ['#26828e', '#6ece58'],
                        title = 'Average Video Likes',
@@ -227,7 +262,7 @@ def make_bars(videos):
                        yaxis_title="Likes",)
 
 
-    fig3 = go.Figure(data = [
+    fig4= go.Figure(data = [
         go.Bar(name = 'mean', x = depths, y = mins_mean,
               #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
                #marker_color = ['#440154']
@@ -237,7 +272,7 @@ def make_bars(videos):
                #marker_color = ['#1f9e89']
               ),
     ])
-    fig3.update_layout(#barmode='group',
+    fig4.update_layout(#barmode='group',
                        #font_color = '#3B846D',
                        colorway = ['#440154', '#31688e'],
                        title = 'Average Video Length (minutes)',
@@ -245,7 +280,7 @@ def make_bars(videos):
                        yaxis_title="Minutes",)
 
 
-    fig4 = go.Figure(data = [
+    fig5 = go.Figure(data = [
         go.Bar(name = 'mean', x = depths, y = views_mean,
               #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
                #marker_color = ['#440154']
@@ -255,14 +290,14 @@ def make_bars(videos):
                #marker_color = ['#1f9e89']
               ),
     ])
-    fig4.update_layout(#barmode='group',
+    fig5.update_layout(#barmode='group',
                        #font_color = '#3B846D',
                        colorway = ['#3e4989', '#26828e'],
                        title = 'Average Video Views',
                        xaxis_title="Depth",
                        yaxis_title="Views",)
 
-    return fig2, fig3, fig4
+    return fig2, fig3, fig4, fig5
 
 
 def convert_time(time):
@@ -290,6 +325,8 @@ def convert_time(time):
         secs = "0" + secs
     if len(mins) == 1:
         mins = "0" + mins
+    if secs == '':
+        secs = "00"
 
 
     if hours != '':
@@ -303,6 +340,7 @@ def convert_time(time):
     return converted
 
 def length_to_min(time):
+
     if len(time.split(":")) == 3:
         pt = datetime.strptime(time, '%H:%M:%S')
         total_seconds = pt.second + pt.minute*60 + pt.hour*3600
@@ -312,5 +350,7 @@ def length_to_min(time):
     else:
         pt = datetime.strptime(time, '%M:%S')
         total_seconds = pt.second + pt.minute*60
+
+    # seems to break if time is an exact number of minutes.
 
     return round(total_seconds/60,0)

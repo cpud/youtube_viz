@@ -14,7 +14,7 @@ layout = html.Div([
     html.Div([
     html.H3("Enter a link to a Youtube video and click submit to create the charts!"),
     dcc.Input(id = 'input-on-submit', type = 'text',
-             value = 'https://www.youtube.com/watch?v=Q8C7Ke-62ok',
+             #value = 'https://www.youtube.com/watch?v=Q8C7Ke-62ok',
              style = {'width': '70%'}),
     html.Button('Submit', id = 'submit-val', n_clicks = 0),
     ], style = {#'width': '49%',
@@ -33,9 +33,10 @@ layout = html.Div([
                   html.Li('The colors represent the "depth" of each video. The video you entered would  \
                   have a depth of 0, and every video directly related to it would have a depth of 1, \
                   because it is one step further down the rabbit hole.'),
-                  html.Li('Selection is based on "likeRatio", so the video that is "selected" next \
-                  is the video with the highest "likeRatio" amongst the related videos. "likeRatio" \
-                  refers to the ratio of "Likes" over "Likes + Dislikes".'),
+                  html.Li('Selection is based on the "polarity" of the title. The\
+                  absolute value of each polarity score is compared, and then the \
+                  video with the greatest "polarity" is selected. Polarity is \
+                  generally on a scale from -1.0 to 1.0.'),
                   html.Li("I'd like to include more videos per node, but this app uses up youtube's API \
                   quota quickly, so I've limited it to 5."),
                   html.Li("I've included a default dataset (Sonic Youth) to display in the case that the API quota \
@@ -52,6 +53,7 @@ layout = html.Div([
     html.Div([
         #dcc.Graph(figure=fig),
         dcc.Graph(id = 'tree'),
+        dcc.Graph(id = 'polarity'),
         dcc.Graph(id = 'likes'),
         dcc.Graph(id = 'minutes'),
         dcc.Graph(id = 'views')
