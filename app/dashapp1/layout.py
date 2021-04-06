@@ -14,7 +14,7 @@ layout = html.Div([
     html.Div([
     html.H3("Enter a link to a Youtube video and click submit to create the charts!"),
     dcc.Input(id = 'input-on-submit', type = 'text',
-             #value = 'https://www.youtube.com/watch?v=Q8C7Ke-62ok',
+             value = 'https://www.youtube.com/watch?v=Q8C7Ke-62ok',
              style = {'width': '70%'}),
     html.Button('Submit', id = 'submit-val', n_clicks = 0),
     ], style = {#'width': '49%',
