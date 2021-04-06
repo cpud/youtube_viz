@@ -1,11 +1,15 @@
 import numpy as np
 import pandas as pd
 import os
+from textblob import TextBlob
 from googleapiclient.discovery import build
 
 api_key = os.environ.get("API_KEY")
 
 def related_ids(url):
+
+    api_key = os.environ.get("API_KEY")
+
     # get video ID
     vid = url.split('=')[-1]
 
@@ -35,8 +39,10 @@ def related_ids(url):
 
 
 def related_api_requests(video_ids):
+    api_key = os.environ.get("API_KEY")
+
     # build youtube resource object
-    youtube = build('youtube','v3',developerKey=api_key)
+    youtube = build('youtube', 'v3', developerKey=api_key)
 
     # video Ids to feed into API
     #related_Ids = list(df['Id'])
@@ -139,8 +145,10 @@ def gather_data(url):
         url = url.split('=')[-1]
         rel_vids = related_ids(url)
         df = related_api_requests(rel_vids)
+        df['polarity'] = df['Title'].apply(lambda x: abs(TextBlob(x).polarity))
 
         sorted_df = df.sort_values(['LikeRatio', 'Views'], ascending = False)
+        sorted_df = df.sort_values(['polarity'], ascending = False)
         out[i] = sorted_df
 
         # selection logic could use some work...
