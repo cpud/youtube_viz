@@ -29,7 +29,7 @@ def register_callbacks(dashapp):
 
         # make table of videos
         dataframe = videos
-        dataframe = dataframe.reindex(columns = ['title','depth','channel', 'views',
+        dataframe = dataframe.reindex(columns = ['title','channel', 'views',
                                                  'likes','dislikes', 'likeRatio', 'length',
                                                  'polarity', 'published'])
 
