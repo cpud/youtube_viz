@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
+import random
 from textblob import TextBlob
 from googleapiclient.discovery import build
 
@@ -38,7 +39,7 @@ def related_ids(url):
 
 
 
-def related_api_requests(video_ids):
+def related_api_requests(video_ids, layers):
     api_key = os.environ.get("API_KEY")
 
     # build youtube resource object
@@ -52,7 +53,8 @@ def related_api_requests(video_ids):
     vid_request = youtube.videos().list(
         part = 'contentDetails',
         id = related_Ids,
-        maxResults = 5)
+        #maxResults = 5
+        )
     vid_response = vid_request.execute()
 
     # loop through durations
@@ -64,7 +66,8 @@ def related_api_requests(video_ids):
     stat_request = youtube.videos().list(
         part = 'statistics',
         id = related_Ids,
-        maxResults = 5)
+        #maxResults = 5
+        )
     stat_response = stat_request.execute()
 
     # empty lists to store data
@@ -93,7 +96,8 @@ def related_api_requests(video_ids):
     snip_request = youtube.videos().list(
         part = 'snippet',
         id = related_Ids,
-        maxResults = 5)
+        #maxResults = 5
+        )
     snip_response = snip_request.execute()
 
     # lists for titles
@@ -131,34 +135,70 @@ def related_api_requests(video_ids):
     # create LikeRatio
     df['LikeRatio'] = df['Likes'] / (df['Likes'] + df['Dislikes'])
 
-    # selected vs recommended. the first video is the 'selected', or viewed video.
-    selected = [1]
-    selected.extend([0] * (len(df) - 1))
-    df['Selected'] = selected
+    # add layer column
+    df['Layer'] = layers
 
     return df
 
 def gather_data(url):
-    out = {}
-    selected = [url.split('=')[-1]]
+    #out = {}
+    #selected = [url.split('=')[-1]]
+    #selected_titles = []
+    check_dict = {}
+    idx = url
     for i in range(0,5):
-        url = url.split('=')[-1]
-        rel_vids = related_ids(url)
-        df = related_api_requests(rel_vids)
-        df['polarity'] = df['Title'].apply(lambda x: abs(TextBlob(x).polarity))
+        # get ids of related video_ids
+        check = related_ids(idx)
+        # choose random video
+        selected = random.randint(1,5)
+        # set the id for next batch of suggested videos
+        idx = check[selected]
+        # drop the selected video from this batch so it doesn't get duplicated
+        del check[selected]
+        # add related ids to dictionary
+        check_dict[i] = check
 
-        sorted_df = df.sort_values(['LikeRatio', 'Views'], ascending = False)
-        sorted_df = df.sort_values(['polarity'], ascending = False)
-        out[i] = sorted_df
+    # move related videos dictionary to dataframe
+    all_vids = pd.DataFrame()
+    for i in range(0,5):
+        temp = pd.DataFrame()
+        temp['id'] = check_dict[i]
+        temp['layer'] = i
+        all_vids = all_vids.append(temp)
+
+    # api request for more info on related videos
+    ids = all_vids['id'].tolist()
+    layers = all_vids ['layer'].tolist()
+    df = related_api_requests(ids, layers)
+
+    # add title polarity
+    df['polarity'] = df['Title'].apply(lambda x: abs(TextBlob(x).polarity))
+    return df
+
+        #url = url.split('=')[-1]
+        #rel_vids = related_ids(url)
+        #df = related_api_requests(rel_vids)
+        #df['polarity'] = df['Title'].apply(lambda x: abs(TextBlob(x).polarity))
+
+        #sorted_df = df.sort_values(['LikeRatio', 'Views'], ascending = False)
+        #sorted_df = df.sort_values(['polarity'], ascending = False)
+        #sorted_df = sorted_df.reset_index()
+        # drop videos that have already been selected
+        #if sorted_df['Title'] in selected_titles:
+        #    sorted_df.drop(0, inplace = True)
+        #    sorted_df = sorted_df.reset_index()
+        #selected_titles.append(sorted_df['Title'][0])
+        #out[i] = sorted_df
 
         # selection logic could use some work...
-        url = sorted_df.reset_index()['ID'][0]
-        if url in selected:
-            filtered = sorted_df[sorted_df['ID'] != url].reset_index()
-            url = filtered['ID'][0]
+        #url = sorted_df.reset_index()['ID'][0]
+        #if url in selected:
+        #    filtered = sorted_df[sorted_df['ID'] != url].reset_index()
+        #    url = filtered['ID'][0]
 
-        selected.append(url)
 
-    selected_df = related_api_requests(selected[:5])
+        #selected.append(url)
 
-    return out, selected_df
+    #selected_df = related_api_requests(selected[:5])
+
+    #return out, selected_df

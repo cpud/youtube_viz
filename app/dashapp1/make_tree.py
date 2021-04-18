@@ -8,129 +8,62 @@ from .data import gather_data
 
 
 def make_df(url):
-    rel_df_dict, selected_df = gather_data(url)
+    # gather data for dataframe
+    videos = gather_data(url)
 
-    videos = pd.DataFrame()
-    for i in range(len(selected_df)):
-        # empty lists to store titles and like ratios for layer
-        layer_titles = []
-        views = []
-        likes = []
-        dislikes = []
-        likeRatio = []
-        length = []
-        channel = []
-        published = []
-
-        # add first selected video manually because reasons
-        # the other selected videos are in there because they're recommened and
-        # due to the sorting for selection. the very first is not so we manually add it
-        if i == 0:
-            layer_titles.append(selected_df['Title'][0])
-            views.append(selected_df['Views'][0])
-            likes.append(selected_df['Likes'][0])
-            dislikes.append(selected_df['Dislikes'][0])
-            likeRatio.append(selected_df['LikeRatio'][0])
-            length.append(selected_df['Length'][0])
-            channel.append(selected_df['Channel'][0])
-            published.append(selected_df['Uploaded'][0])
-
-        layer_titles.extend(rel_df_dict[i]['Title'].tolist()[:10])
-        views.extend(rel_df_dict[i]['Views'].tolist()[:10])
-        likes.extend(rel_df_dict[i]['Likes'].tolist()[:10])
-        dislikes.extend(rel_df_dict[i]['Dislikes'].tolist()[:10])
-        likeRatio.extend(rel_df_dict[i]['LikeRatio'].tolist()[:10])
-        length.extend(rel_df_dict[i]['Length'].tolist()[:10])
-        channel.extend(rel_df_dict[i]['Channel'].tolist()[:10])
-        published.extend(rel_df_dict[i]['Uploaded'].tolist()[:10])
-        #selected.extend([0] * len(rel_df_dict[i]['Title'].tolist()[:10]))
-
-        temp = pd.DataFrame()
-        temp['title'] = layer_titles
-        temp['channel'] = channel
-        temp['layer'] = i
-        temp['views'] = views
-        temp['likes'] = likes
-        temp['dislikes'] = dislikes
-        temp['likeRatio'] = likeRatio
-        temp['length'] = length
-        temp['published'] = published
-        #temp['selected'] = selected
-
-        videos = videos.append(temp)
-
-    videos['length'] = videos['length'].apply(lambda x: convert_time(x))
-    videos['published'] = videos['published'].apply(lambda x: x.split('T')[0])
-    videos['likeRatio'] = videos['likeRatio'].apply(lambda x: round(x*100,3))
-    videos['polarity'] = videos['title'].apply(lambda x: abs(TextBlob(x).polarity))
-    videos['polarity'] = videos['polarity'].apply(lambda x: round(x,3))
-    videos.to_csv("data/videos.csv")
-
+    # adjust columns and prepare for plot
+    videos['Length'] = videos['Length'].apply(lambda x: convert_time(x))
+    videos['Uploaded'] = videos['Uploaded'].apply(lambda x: x.split('T')[0])
+    videos['LikeRatio'] = videos['LikeRatio'].apply(lambda x: round(x*100,3))
+    videos['Polarity'] = videos['Title'].apply(lambda x: round(TextBlob(x).polarity),3)
+    videos['Minutes'] = videos['Length'].apply(lambda x: length_to_min(x))
+    videos['views_str'] = videos['Views'].apply(lambda x: str(x))
+    videos['likes_str'] = videos['Likes'].apply(lambda x: str(x))
+    videos['dislikes_str'] = videos['Dislikes'].apply(lambda x: str(x))
+    videos['pol_string'] = videos['Polarity'].apply(lambda x: str(x))
+    videos['LikeRatio_str'] = videos['LikeRatio'].apply(lambda x: str(x))
+    videos['plot_text'] = videos['Title'] + ' ' + '<br>' + 'Polarity: ' + videos['pol_string'] + '<br>' + \
+                        'Views: ' + videos['views_str'] + \
+                        '<br>' + 'Likes: ' + videos['likes_str'] + '<br>' + \
+                        'LikeRatio: ' + videos['LikeRatio_str'] + '<br>' + 'Length: ' + videos['Length']
     return videos
 
 def prepare_tree(videos):
-    """This function creates the connections and labels used to make the
-    tree plot."""
     layer_lens = []
-    for n in range(len(videos['layer'].unique().tolist())):
-        layer_lens.append(len(videos[videos['layer'] == n]))
+    for n in range(len(videos['Layer'].unique().tolist())):
+        layer_lens.append(len(videos[videos['Layer'] == n]))
 
     connections = []
     v_label = []
     counter = 0
-    sel_idx = [1]
+    sel_idx = [0]
 
     for i in range(5):
-        temp_label = videos['title'].tolist()[counter:counter + layer_lens[i]]
+        # get video titles in each layer
+        temp_label = videos['Title'].tolist()[counter:counter + layer_lens[i]]
 
-        for j in range(counter, counter + layer_lens[i]):
-            if i == 0:
-                connections.append((0, j))
-            else:
-                connections.append((sel_idx[i-1], j))
-                #connections.append((counter, j))
+        # generating tuples for node connections
+        # we want them in this form:
+        # 0, 5, 10 etc are the 'selected' videos and need to connect to each other
+        # (0,1), (0,2), (0,3), (0,4), (0, 5)
+        # (5, 6), (5, 7), (5, 8), (5, 9), (5, 10)
+        for j in range(counter + 1, counter + layer_lens[i] + 1):
+            connections.append(((counter, j)))
 
         counter += layer_lens[i]
-        sel_idx.append(counter)
-
         v_label.extend(temp_label)
 
     return v_label, connections
 
 def make_plot(videos):
-    #videos = make_df(url)
-
     v_label, connections = prepare_tree(videos)
 
     # make list for coloring the nodes
-    coloring = videos['layer'].tolist()
-    for i in range(1, len(videos)):
-        coloring[i] = coloring[i] + 1
+    coloring = videos['Layer'].tolist()
 
-    # prepare text for plot
-    videos['depth'] = coloring
-    videos['pol_string'] = videos['polarity'].apply(lambda x: str(x))
-    videos['minutes'] = videos['length'].apply(lambda x: length_to_min(x))
-    videos['views_str'] = videos['views'].apply(lambda x: str(x))
-    videos['likes_str'] = videos['likes'].apply(lambda x: str(x))
-    videos['dislikes_str'] = videos['dislikes'].apply(lambda x: str(x))
-    videos['likeRatio_str'] = videos['likeRatio'].apply(lambda x: str(x))
-    videos['plot_text'] = videos['title'] + ' ' + '<br>' + 'Polarity: ' + videos['pol_string'] + '<br>' + \
-                        'Views: ' + videos['views_str'] + \
-                        '<br>' + 'Likes: ' + videos['likes_str'] + '<br>' + \
-                        'LikeRatio: ' + videos['likeRatio_str'] + '<br>' + 'Length: ' + videos['length']
-
-    # resort because wrong before??
-    depths = [0,1,2,3,4,5]
-    proper_sort = pd.DataFrame()
-    for depth in depths:
-        temp = videos[videos['depth'] == depth]
-        temp = temp.sort_values(by = ['likeRatio', 'views'], ascending = False)
-        temp = temp.sort_values(by = ['polarity'], ascending = False)
-        proper_sort = proper_sort.append(temp)
-
-    videos = proper_sort
     videos.to_csv("data/videos.csv")
+
+    v_label, connections = prepare_tree(videos)
 
     # prepare igraph data for plotly as seen in plotly tree graph docs
     nr_vertices = len(v_label)
@@ -179,7 +112,7 @@ def make_plot(videos):
                                     #color='#6175c1',    #'#DB4551',
                                     color = coloring,
                                     colorbar = dict(
-                                        title = 'Depth'),
+                                        title = 'Layer'),
                                     colorscale = "viridis",
                                     line=dict(color='rgb(50,50,50)', width=1)
                                     ),
@@ -198,40 +131,36 @@ def make_plot(videos):
 
 
 def make_bars(videos):
-    depths = [0,1,2,3,4,5]
-    #videos = pd.read_csv('data/videos.csv')
 
-    #try:
-    #    videos = pd.read_csv('data/videos.csv')
-    #except:
-    #    videos = pd.read_csv('data/sy.csv')
+    try:
+        videos = pd.read_csv('data/videos.csv')
+    except:
+        videos = pd.read_csv('data/sy.csv')
 
-    polarity_mean = []
-    polarity_std = []
     likes_mean = []
     likes_std = []
     mins_mean = []
     mins_std = []
     views_mean = []
     views_std = []
-    for depth in depths:
-        depth_df = videos[videos['depth'] == depth]
-        polarity_mean.append(depth_df['polarity'].mean())
-        polarity_std.append(depth_df['polarity'].std())
-        likes_mean.append(depth_df['likes'].mean())
-        likes_std.append(depth_df['likes'].std())
-        mins_mean.append(depth_df['minutes'].mean())
-        mins_std.append(depth_df['minutes'].std())
-        views_mean.append(depth_df['views'].mean())
-        views_std.append(depth_df['views'].std())
+    layers = videos['Layer'].unique().tolist()
+
+    for layer in layers:
+        layer_df = videos[videos['Layer'] == layer]
+        likes_mean.append(layer_df['Likes'].mean())
+        likes_std.append(layer_df['Likes'].std())
+        mins_mean.append(layer_df['Minutes'].mean())
+        mins_std.append(layer_df['Minutes'].std())
+        views_mean.append(layer_df['Views'].mean())
+        views_std.append(layer_df['Views'].std())
 
 
     fig2 = go.Figure(data = [
-            go.Bar(name = 'mean', x = depths, y = polarity_mean,
+            go.Bar(name = 'mean', x = layers, y = likes_mean,
                   #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
                    #marker_color = ['#440154']
                   ),
-            go.Bar(name = 'std', x = depths, y = polarity_std,
+            go.Bar(name = 'std', x = layers, y = likes_std,
                   #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
                    #marker_color = ['#1f9e89']
                   ),
@@ -239,17 +168,17 @@ def make_bars(videos):
     fig2.update_layout(#barmode='group',
                            #font_color = '#3B846D',
                            colorway = ['#3e4989', '#1f9e89'],
-                           title = 'Average Video Title Polarity',
-                           xaxis_title="Depth",
-                           yaxis_title="Polarity",)
+                           title = 'Average Video Likes',
+                           xaxis_title="Layer",
+                           yaxis_title="Likes",)
 
 
     fig3 = go.Figure(data = [
-        go.Bar(name = 'mean', x = depths, y = likes_mean,
+        go.Bar(name = 'mean', x = layers, y = mins_mean,
               #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
                #marker_color = ['#440154']
               ),
-        go.Bar(name = 'std', x = depths, y = likes_std,
+        go.Bar(name = 'std', x = layers, y = mins_std,
               #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
                #marker_color = ['#1f9e89']
               ),
@@ -257,17 +186,17 @@ def make_bars(videos):
     fig3.update_layout(#barmode='group',
                        #font_color = '#3B846D',
                        colorway = ['#26828e', '#6ece58'],
-                       title = 'Average Video Likes',
-                       xaxis_title="Depth",
-                       yaxis_title="Likes",)
+                       title = 'Average Video Length (Minutes)',
+                       xaxis_title="Layer",
+                       yaxis_title="Minutes",)
 
 
     fig4= go.Figure(data = [
-        go.Bar(name = 'mean', x = depths, y = mins_mean,
+        go.Bar(name = 'mean', x = layers, y = views_mean,
               #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
                #marker_color = ['#440154']
               ),
-        go.Bar(name = 'std', x = depths, y = mins_std,
+        go.Bar(name = 'std', x = layers, y = views_std,
               #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
                #marker_color = ['#1f9e89']
               ),
@@ -275,27 +204,23 @@ def make_bars(videos):
     fig4.update_layout(#barmode='group',
                        #font_color = '#3B846D',
                        colorway = ['#440154', '#31688e'],
-                       title = 'Average Video Length (minutes)',
-                       xaxis_title="Depth",
-                       yaxis_title="Minutes",)
-
-
-    fig5 = go.Figure(data = [
-        go.Bar(name = 'mean', x = depths, y = views_mean,
-              #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
-               #marker_color = ['#440154']
-              ),
-        go.Bar(name = 'std', x = depths, y = views_std,
-              #marker_color = ['#440154', '#3e4989', '#26828e', '#1f9e89', '#6ece58', '#fde725']
-               #marker_color = ['#1f9e89']
-              ),
-    ])
-    fig5.update_layout(#barmode='group',
-                       #font_color = '#3B846D',
-                       colorway = ['#3e4989', '#26828e'],
                        title = 'Average Video Views',
-                       xaxis_title="Depth",
+                       xaxis_title="Layer",
                        yaxis_title="Views",)
+
+
+    fig5 = go.Figure(data = [go.Bar(
+        x = videos['Channel'].unique().tolist(),
+        y = videos['Channel'].value_counts()
+    )])
+
+    fig5.update_layout(#barmode='group',
+                           #font_color = '#3B846D',
+                           #colorway = ['#3e4989', '#1f9e89'],
+                           title = 'Channel Frequency',
+                           #font_size = 9,
+                           xaxis_title="Channel",
+                           yaxis_title="Number of Videos",)
 
     return fig2, fig3, fig4, fig5
 
@@ -311,7 +236,7 @@ def convert_time(time):
         secs = rest.split("M")[1]
         secs = secs.split("S")[0]
     elif "M" not in time:
-        secs = thing.split[0]
+        secs = thing.split("S")[0]
         hours = ''
         mins = ''
     else:
